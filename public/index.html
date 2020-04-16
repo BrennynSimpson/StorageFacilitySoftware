@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+     <script src="https://js.stripe.com/v3/"></script>
+     <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+     <link href="https://use.fontawesome.com/releases/v5.0.13/css/all.css" rel="stylesheet">
+     <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+     <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+     <link rel="stylesheet" href="css/normalize.css" />
+     <link rel="stylesheet" href="css/global.css" />
+     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+        <v-content>
+            <v-card height="100%">
+
+              <!-- Start Navigation Drawer -->
+              <v-navigation-drawer mini v-model="drawer" :expand-on-hover="true" class="primary" fixed dark>
+                <v-list dense nav>
+                  <v-list-item two-line>
+                    <v-list-item-avatar>
+                      <img src="https://randomuser.me/api/portraits/men/81.jpg">
+                    </v-list-item-avatar>
+        
+                    <v-list-item-content>
+                      <v-list-item-title>Welcome</v-list-item-title>
+                      <v-list-item-subtitle>Admin</v-list-item-subtitle>
+                    </v-list-item-content>
+                  </v-list-item>
+        
+                  <v-divider></v-divider>
+        
+                  <v-list-item v-for="item in navItems" :key="item.title" link v-on:click="page = item.page">
+                    <v-list-item-avatar>
+                      <v-icon med>{{ item.icon }}</v-icon>
+                    </v-list-item-avatar>
+        
+                    <v-list-item-content>
+                      <v-list-item-title>{{ item.title }}</v-list-item-title>
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-list>
+              </v-navigation-drawer>
+              <!-- End Navigation Drawer -->
+
+              <!-- Start Dashboard Page -->
+              <v-container v-if="page == 'dashboard'" class="lighten-5">
+                <!-- Stack the columns on mobile by making one full-width and the other half-width -->
+                <v-row>
+                  <v-col cols="12" md="8">
+                    <v-data-table :items-per-page="5" :headers="charge_summary_headers" :items="charges" sort-by="created" class="elevation-1 ma-8" :search="charge_search" >
+                      <template v-slot:top>
+                        <v-toolbar flat color="white">
+                              <v-row>
+                                <v-col cols="4"> <h2>Recent Payments</h2></v-col>
+                                <v-col cols="8">
+                                  <v-text-field v-model="charge_search" append-icon="mdi-magnify" label="Search" single-line hide-details></v-text-field>
+                                </v-col>
+                              </v-row>
+                        </v-toolbar>
+                      </template>
+                    </v-data-table>
+
+                    <!-- Clients Data Table -->
+                    <v-data-table :items-per-page="5"  :headers="recent_client_headers" :items="clients" :search="client_search" item-key="id" class="elevation-1 ma-8">
+                      <template v-slot:top>
+                        <v-toolbar flat color="white">
+                              <v-row>
+                                <v-col cols="4" class="pt-7"> <h2>Recent Clients</h2></v-col>
+                                <v-col cols="8" class="pt-7">
+                                  <v-text-field v-model="client_search" append-icon="mdi-magnify" label="Search" single-line hide-details></v-text-field>
+                                </v-col>
+                              </v-row>
+                        </v-toolbar>
+                      </template>
+                    </v-data-table>
+
+                    
+                    <!-- Unit Summary Data Table -->
+                    <v-data-table :items-per-page="10" :headers="summary_unit_headers" :items="units" sort-by="unitNumber" class="elevation-1 ma-8" :search="unit_search" >
+                      <template v-slot:top>
+                        <v-toolbar flat color="white">
+                              <v-row>
+                                <v-col cols="4" class="pt-7"> <h2>Units</h2></v-col>
+                                <v-col cols="8" class="pt-7">
+                                  <v-text-field v-model="unit_search" append-icon="mdi-magnify" label="Search" single-line hide-details></v-text-field>
+                                </v-col>
+                              </v-row>
+                        </v-toolbar>
+                      </template>
+                    </v-data-table>
+                  </v-col>
+
+                  <v-col cols="6" md="4">
+                    <!-- Unit Summary Card -->
+                    <v-card class="pa-2 ma-8">
+                      <v-card-title>Unit Summary</v-card-title>
+                      <v-row justify="center">
+                        <div class="text-center ma-7">
+                          <v-progress-circular
+                            :indeterminate="false"
+                            :rotate="0"
+                            :size="150"
+                            :value="occupied_units"
+                            :width="15"
+                            :color="unit_graph_color"
+                          >{{ occupied_units }}/{{ total_units}} <br>Occupied</v-progress-circular>
+                        </div>
+                      </v-row>
+                      <v-card-text>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Occupied Units</v-col><v-col cols="6" class="text-end">{{occupied_units}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Vacant Units</v-col><v-col cols="6" class="text-end">{{vacant_units}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Total Units</v-col><v-col cols="6" class="text-end">{{total_units}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                      </v-card-text>
+                    </v-card>
+
+
+                    <!-- Start Summary Card -->
+                    <v-card class="pa-2 ma-8">
+                      <v-card-title>Tasks Summary</v-card-title>
+                      <v-row justify="center">
+                        <div class="text-center ma-7">
+                          <v-progress-circular
+                            :indeterminate="false"
+                            :rotate="0"
+                            :size="150"
+                            :value="completed_tasks"
+                            :width="15"
+                            :color="task_graph_color"
+                          >{{ completed_tasks }}/{{ total_tasks}} <br>Complete</v-progress-circular>
+                        </div>
+                      </v-row>
+                      <v-card-text>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Completed Tasks</v-col><v-col cols="6" class="text-end">{{completed_tasks}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Incomplete Tasks</v-col><v-col cols="6" class="text-end">{{incomplete_tasks}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Total Tasks</v-col><v-col cols="6" class="text-end">{{total_tasks}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                      </v-card-text>
+                    </v-card>
+
+                    <!-- Lead Summary Card -->
+                    <v-card class="pa-2 ma-8">
+                      <v-card-title>Leads Summary</v-card-title>
+                      <v-row justify="center">
+                        <div class="text-center ma-7">
+                          <v-progress-circular
+                            :indeterminate="false"
+                            :rotate="0"
+                            :size="150"
+                            :value="contacted_leads"
+                            :width="15"
+                            :color="lead_graph_color"
+                          >{{ contacted_leads }}/{{ total_leads}} <br>Contacted</v-progress-circular>
+                        </div>
+                      </v-row>
+                      <v-card-text>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Contacted Leads</v-col><v-col cols="6" class="text-end">{{contacted_leads}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Uncontacted Leads</v-col><v-col cols="6" class="text-end">{{uncontacted_leads}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Total Leads</v-col><v-col cols="6" class="text-end">{{total_leads}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                </v-row>
+              </v-container>
+              <!-- End Dashboard Page -->
+
+              <!-- Start Client Page -->
+              <v-container v-show="page == 'clients'" class="lighten-5">
+                <v-card flat>
+                  <v-row>
+                    <v-col cols="12">
+                      <v-data-table :headers="client_headers" :items="clients" :search="client_search" item-key="id" class="elevation-1">
+                        <template v-slot:top>
+                          <v-toolbar flat color="white">
+                                <v-row>
+                                  <v-col cols="2" class="pt-7"> <h2>Clients</h2></v-col>
+                                  <v-col cols="8" class="pt-7">
+                                    <v-text-field v-model="client_search" append-icon="mdi-magnify" label="Search" single-line hide-details></v-text-field>
+                                  </v-col>
+                                  <v-col cols="2" class="text-right">
+                                    <v-btn color="primary" @click="openNewClientDialog">
+                                      Client<v-icon dark>mdi-plus</v-icon>
+                                   </v-btn>
+                                   </v-col>
+                                </v-row>
+  
+                              <!-- Begin Client Info Dialog -->
+                              <v-dialog persistent v-model="client_info_dialog" max-width="1100px">
+
+                                <v-card>
+                                  <v-toolbar flat color="primary" dark>
+                                    <v-toolbar-title>User Profile</v-toolbar-title>
+                                  </v-toolbar>
+                                  <v-tabs vertical>
+                                    <v-tab>
+                                      <v-icon left small>fas fa-user</v-icon>
+                                      Account
+                                    </v-tab>
+                                    <v-tab>
+                                      <v-icon left small>fas fa-dollar-sign</v-icon>
+                                      Payment Info
+                                    </v-tab>
+                                    <v-tab>
+                                      <v-icon left small>fas fa-warehouse</v-icon>
+                                      Unit Info
+                                    </v-tab>
+                              
+                                    <v-tab-item>
+                                      <v-card flat v-if="editing_client == false">
+                                        <v-card-text>
+                                          <p><strong>Customer ID:</strong> {{dialog_client.client._id}}</p>
+                                          <p><strong>Name:</strong> {{dialog_client.client.lastName}}, {{dialog_client.client.firstName}}</p>
+                                          <p><strong>Email:</strong> {{dialog_client.client.email}}</p>
+                                          <p><strong>Phone:</strong> {{dialog_client.client.phone}}</p>
+                                          <p><strong>Address:</strong> {{dialog_client.client.address}} <strong>Zip Code:</strong> {{dialog_client.client.zipCode}} <strong>State:</strong> {{dialog_client.client.state}}</p>
+                                        </v-card-text>
+                                        <v-card-actions>
+                                          <v-btn v-on:click="editing_client= true">Edit Client</v-btn>
+                                        </v-card-actions>
+                                      </v-card>
+                                      <v-card flat v-else>
+                                        <v-card-text>
+                                          <v-row>
+                                            <v-col cols="6">
+                                              <v-text-field readonly outlined label="Customer ID:" v-model="dialog_client.client._id"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="Last Name" v-model="dialog_client.client.lastName"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="First Name" v-model="dialog_client.client.firstName"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="Email" v-model="dialog_client.client.email">{{dialog_client.client.email}}</v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="Phone" v-model="dialog_client.client.phone">{{dialog_client.client.phone}}</v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="Address" v-model="dialog_client.client.address">
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="Zip Code" v-model="dialog_client.client.zipCode"></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-text-field outlined label="State" v-model="dialog_client.client.state"></v-text-field>
+                                            </v-col>
+                                          </v-row>
+                                        </v-card-text>
+                                        <v-card-actions>
+                                          <v-btn color="primary" @click="updateClientDetails">Save Changes</v-btn>
+                                          <v-btn color="primary" text @click="close()">Cancel</v-btn>
+                                        </v-card-actions>
+                                      </v-card>
+                                    </v-tab-item>
+                                    <v-tab-item>
+                                      <v-card flat>
+                                        <v-card-title>Payment Method</v-card-title>
+                                        <v-card-text>
+                                          <v-row>
+                                            <v-col cols="2"><strong>Type:</strong> {{dialog_client.first_invoice.payment_method_details.type}}</v-col>
+                                            <v-col cols="2">{{dialog_client.first_invoice.payment_method_details.card.brand}}  ****{{dialog_client.first_invoice.payment_method_details.card.last4}}</v-col>
+                                            <v-col cols="2"><strong>Exp: </strong>{{dialog_client.first_invoice.payment_method_details.card.exp_month}}/{{dialog_client.first_invoice.payment_method_details.card.exp_year}}</v-col>
+                                          </v-row>
+                                        </v-card-text>
+                                      </v-card>
+                                      <v-card flat>
+                                        <v-card-title>Invoices</v-card-title>
+                                        <v-card-text>
+                                            <v-row v-for="invoice in dialog_client.invoices">
+                                              <v-col cols="2"><strong>Amount:</strong> ${{invoice.amount}}</v-col>
+                                              <v-col cols="2">{{invoice.statement_descriptor}}</v-col>
+                                              <v-col cols="2"><strong>Type:</strong> {{invoice.object}}</v-col>
+                                              <v-col cols="3"><strong>Status:</strong> {{invoice.status}}</v-col>
+                                              <v-col cols="3"><v-btn href="{invoice.receipt_url}">Print Invoice</v-btn></v-col>
+                                            </v-row>
+                                        </v-card-text>
+                                      </v-card>
+                                    </v-tab-item>
+                                    <v-tab-item>
+                                      <v-card flat v-if="editing_client == false">
+                                        <v-card-title>Unit Info</v-card-title>
+                                        <v-card-text>
+                                          <p><strong>Move in Date:</strong> {{dialog_client.client.moveInDate}} <strong>Move Out Date:</strong> {{dialog_client.client.moveOutDate}}</p>
+                                          <p><strong>Unit Number:</strong> {{dialog_client.unit.unitNumber}} <strong>Unit Size:</strong> {{dialog_client.unit.unitSize}}</p>
+                                        </v-card-text>
+                                        <v-card-actions>
+                                          <v-btn v-on:click="editing_client = true">Edit Unit Info</v-btn>
+                                        </v-card-actions>
+                                      </v-card>
+
+                                      <v-card flat v-else>
+                                        <v-card-text>
+                                          <v-row>
+                                            <v-col cols="6">
+                                              <v-menu v-model="new_client_move_in_menu" ref="datePicker" :close-on-content-click="false" offset-y min-width="290px">
+                                                <template v-slot:activator="{ on }">
+                                                    <v-text-field outlined v-model="dialog_client.client.moveInDate" label="Move In Date" readonly v-on="on"></v-text-field>
+                                                </template>
+                                                <v-date-picker v-model="dialog_client.client.moveInDate" @input="new_client_move_in_menu = false" no-title scrollable>
+                                                    <v-spacer></v-spacer>
+                                                </v-date-picker>
+                                              </v-menu>
+                                            </v-col>
+                                            <v-col cols="6">
+                                              <v-menu v-model="new_client_move_out_menu" ref="datePicker" :close-on-content-click="false" offset-y min-width="290px">
+                                                <template v-slot:activator="{ on }">
+                                                    <v-text-field outlined v-model="dialog_client.client.moveOutDate" label="Move Out Date" readonly v-on="on"></v-text-field>
+                                                </template>
+                                                <v-date-picker v-model="dialog_client.client.moveOutDate" @input="new_client_move_out_menu = false" no-title scrollable>
+                                                    <v-spacer></v-spacer>
+                                                </v-date-picker>
+                                              </v-menu>
+                                            </v-col>
+                                          </v-row>
+                                          <v-row>
+                                            <p><strong>Unit Number:</strong> {{dialog_client.unit.unitNumber}} <strong>Unit Size:</strong> {{dialog_client.unit.unitSize}}</p>
+                                          </v-row>
+                                        </v-card-text>
+                                        <v-card-actions>
+                                          <v-btn color="primary" @click="updateClientDetails">Save Changes</v-btn>
+                                          <v-btn color="primary" text @click="close()">Cancel</v-btn>
+                                        </v-card-actions>
+                                      </v-card>
+                                    </v-tab-item>
+                                  </v-tabs>
+                                  <v-card-actions>
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="blue darken-1" text @click="close">Done</v-btn>
+                                  </v-card-actions>
+                                </v-card>
+                              </v-dialog>
+                              <!-- End Client Info Dialog -->
+  
+                          </v-toolbar>
+                        </template>
+                        <template v-slot:item.action="{ item }">
+                          <v-icon small round @click="getClientDetails(item)" color="grey" class="ma-0">
+                            fas fa-info-circle
+                          </v-icon>
+                        </template>
+                      </v-data-table>
+                    </v-col>
+                  </v-row>
+                </v-card>
+
+                <!-- Start New Client Dialog -->
+                <v-dialog v-model="new_client_dialog" max-width="1100px">
+                  <v-stepper v-model="e1">
+                    <!-- Headers -->
+                    <v-stepper-header>
+                      <v-stepper-step :complete="e1 > 1" step="1">Client Info</v-stepper-step>
+                      <v-divider></v-divider>
+                      <v-stepper-step :complete="e1 > 2" step="2">Unit Details</v-stepper-step>
+                      <v-divider></v-divider>
+                      <v-stepper-step step="3">Paymet Method</v-stepper-step>
+                    </v-stepper-header>
+                
+                    <v-stepper-items>
+                      <v-stepper-content step="1">
+                        <v-card class="mb-4" flat>
+                          <v-row>
+                            <v-col cols="6">
+                              <v-text-field outlined label="First Name" v-model="new_client_first_name"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined label="Last Name" v-model="new_client_last_name"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined label="Email" v-model="new_client_email"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined label="Phone" v-model="new_client_phone"></v-text-field>
+                            </v-col>
+                            <v-col cols="12">
+                              <v-text-field outlined label="Address" v-model="new_client_address"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined label="Zip Code" v-model="new_client_zip_code"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined label="State" v-model="new_client_state"></v-text-field>
+                            </v-col>
+                          </v-row>
+                        </v-card>
+                
+                        <v-btn color="primary" @click="moveToStepTwoOfNewClientProcess"> Continue </v-btn>
+                        <v-btn text @click="cancelNewClientProcess">Cancel</v-btn>
+                      </v-stepper-content>
+                
+                      <v-stepper-content step="2">
+                        <v-row>
+                          <v-col cols="6">
+                            <v-card v-for="unit in available_units" flat>
+                              <v-row>
+                                <v-col cols="6">
+                                  <v-list-item three-line>
+                                    <v-list-item-content>
+                                      <v-list-item-title>Size: {{unit.unitSize}}</v-list-item-title>
+                                      <v-list-item-subtitle>
+                                        Number: {{unit.unitNumber}}
+                                      </v-list-item-subtitle>
+                                      <v-list-item-subtitle color="success">
+                                        Vacant
+                                      </v-list-item-subtitle>
+                                    </v-list-item-content>
+                                  </v-list-item>
+                                </v-col>
+                                <v-col cols="6" class="text-right">
+                                  <v-btn color="primary" @click="unit_to_be_assigned_to_client = unit">
+                                    Assign
+                                  </v-btn>
+                                </v-col>
+                              </v-row>
+                              <v-divider></v-divider>
+                            </v-card>
+                          </v-col>
+                          <v-col cols="6">
+                            <v-row>
+                              <v-col cols="12">
+                                <v-menu v-model="new_client_move_in_menu" ref="datePicker" :close-on-content-click="false" offset-y min-width="290px">
+                                  <template v-slot:activator="{ on }">
+                                      <v-text-field outlined v-model="new_client_move_in_date" label="Move In Date" readonly v-on="on"></v-text-field>
+                                  </template>
+                                  <v-date-picker v-model="new_client_move_in_date" @input="new_client_move_in_menu = false" no-title scrollable>
+                                      <v-spacer></v-spacer>
+                                  </v-date-picker>
+                                </v-menu>
+                              </v-col>
+                              <v-col cols="12">
+                                <v-menu v-model="new_client_move_out_menu" ref="datePicker" :close-on-content-click="false" offset-y min-width="290px">
+                                  <template v-slot:activator="{ on }">
+                                      <v-text-field outlined v-model="new_client_move_out_date" label="Move Out Date" readonly v-on="on"></v-text-field>
+                                  </template>
+                                  <v-date-picker v-model="new_client_move_out_date" @input="new_client_move_out_menu = false" no-title scrollable>
+                                      <v-spacer></v-spacer>
+                                  </v-date-picker>
+                                </v-menu>
+                              </v-col>
+                            </v-row>
+                          </v-col>
+                        </v-row>
+                
+                        <v-btn color="primary" @click="e1 = 3">Continue</v-btn>
+                        <v-btn text @click="cancelNewClientProcess">Cancel</v-btn>
+                      </v-stepper-content>
+                
+                      <v-stepper-content step="3">
+                        <v-card class="mb-4" flat>
+                          <div class="sr-root">
+                            <div class="sr-main">
+                              <form>
+                                <div class="sr-payment-form payment-view">
+                                  <div class="sr-form-row">
+                                    <label for="card-element">
+                                      Payment details
+                                    </label>
+                                    <v-select id="plan_selector" label="Unit Size" :items="payment_plans"></v-select>
+                                    <div class="sr-combo-inputs">
+                                        <input type="text" id="email" placeholder="Email" autocomplete="cardholder" class="sr-input"/>
+                                      <div class="sr-combo-inputs-row">
+                                        <div class="sr-input sr-card-element" id="card-element"></div>
+                                      </div>
+                                    </div>
+                                    <div class="sr-field-error" id="card-errors" role="alert"></div>
+                                  </div>
+                                  <v-btn color="primary" id="submit">
+                                    <div id="spinner" class="hidden"></div>
+                                    <span id="button-text">Subscribe</span>
+                                  </v-btn>
+                                  <div class="sr-legal-text">
+                                    Your card will be immediately charged
+                                  </div>
+                                </div>
+                              </form>
+                              <div class="sr-payment-summary hidden completed-view">
+                                <h1 color="success">Your subscription is <span class="order-status"></span></h1>
+                              </div>
+                            </div>
+                          </div>
+                        </v-card>
+                        <v-btn color="primary" @click="createNewClient"> Finish </v-btn>
+                
+                        <v-btn text @click="cancelNewClientProcess()">Cancel</v-btn>
+                      </v-stepper-content>
+                    </v-stepper-items>
+                  </v-stepper>
+          
+                </v-dialog>
+                <!-- End New Client Dialog -->
+
+              </v-container>
+              <!-- End Client Page -->
+
+              <!-- Start Payments Page -->
+              <v-container v-show="page == 'payments'" class="lighten-5">
+                <v-row>
+                  <v-col cols="12">
+                    <v-data-table :items-per-page="5" :headers="charge_headers" :items="charges" sort-by="created" class="elevation-1" :search="charge_search" >
+                      <template v-slot:top>
+                        <v-toolbar flat color="white">
+                              <v-row>
+                                <v-col cols="4" class="pt-7"> <h2>Payments</h2></v-col>
+                                <v-col cols="8" class="pt-7">
+                                  <v-text-field v-model="charge_search" append-icon="mdi-magnify" label="Search" single-line hide-details></v-text-field>
+                                </v-col>
+                              </v-row>
+
+                               <!-- Start Payment Info Dialog -->
+                              <v-dialog persistent  v-model="charge_info_dialog" max-width="1100px">
+                                <v-card>
+                                  <v-toolbar flat color="primary" dark>
+                                    <v-toolbar-title>Payment Info</v-toolbar-title>
+                                  </v-toolbar>
+                                  <v-tabs vertical>
+                                    <v-tab>
+                                      <v-icon left small> fas fa-dollar-sign</v-icon>
+                                      Payment Info
+                                    </v-tab>
+                                    <v-tab>
+                                      <v-icon left small>fas fa-user</v-icon>
+                                      Customer Info
+                                    </v-tab>
+                              
+                                    <v-tab-item>
+                                      <v-card flat>
+                                        <v-card-title>Payment Method/Invoice</v-card-title>
+                                        <v-card-text>
+                                            <v-row>
+                                              <v-col cols="12"><strong>Description:</strong> {{dialog_charge.statement_descriptor}}</v-col>
+                                              <v-col cols="12"><strong>Amount:</strong> ${{dialog_charge.amount}}</v-col>
+                                              <v-col cols="12"><strong>Status:</strong> {{dialog_charge.status}}</v-col>
+                                              <v-col cols="12"><strong>Payment Method:</strong> {{dialog_charge.card.brand}} ********{{dialog_charge.card.last4}} <strong>Exp:</strong> {{dialog_charge.card.exp_month}}/{{dialog_charge.card.exp_year}}</v-col>
+                                              <v-col cols="12"><strong>Invoice Url:</strong> {{dialog_charge.receipt_url}}</v-col>
+                                            </v-row>
+                                        </v-card-text>
+                                      </v-card>
+                                    </v-tab-item>
+                                    <v-tab-item>
+                                      <v-card flat>
+                                        <v-card-title>Customer Info</v-card-title>
+                                        <v-card-text>
+                                          <p><strong>Customer ID:</strong> {{dialog_charge.client._id}}</p>
+                                          <p><strong>Name:</strong> {{dialog_charge.client.lastName}}, {{dialog_charge.client.firstName}}</p>
+                                          <p><strong>Email:</strong> {{dialog_charge.client.email}}</p>
+                                          <p><strong>Phone:</strong> {{dialog_charge.client.phone}}</p>
+                                          <p><strong>Address:</strong> {{dialog_charge.client.address}} <strong>Zip Code:</strong> {{dialog_charge.client.zipCode}} <strong>State:</strong> {{dialog_charge.client.state}}</p>
+                                        </v-card-text>
+                                      </v-card>
+                                    </v-tab-item>
+                                  </v-tabs>
+                                  <v-card-actions>
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="blue darken-1" text @click="close">Done</v-btn>
+                                  </v-card-actions>
+                                </v-card>
+                              </v-dialog>
+                              <!-- End Payment Info Dialog -->
+
+                        </v-toolbar>
+                      </template>
+                      <template v-slot:item.action="{ item }">
+                        <v-icon small round @click="getPaymentDetails(item)" color="grey" class="ma-0">
+                          fas fa-info-circle
+                        </v-icon>
+                      </template>
+                    </v-data-table>
+                  </v-col>
+                </v-row>
+              </v-container>
+              <!-- End Payments Page -->
+
+              <!-- Start Units Page -->
+              <v-container v-show="page == 'units'" class="lighten-5">
+                <v-card flat>
+                <v-row>
+                      <!-- Start New/Edit Unit Dialog -->
+                      <v-dialog persistent v-model="new_unit_dialog" max-width="500px">
+                        <v-card class="pa-4">
+                          <v-card-title v-if="editing_unit == false">Create a New Unit</v-card-title>
+                          <v-card-title v-else>Edit Unit</v-card-title>
+                          <v-select outlined id="plan_selector" v-model="new_unit_size" :items="payment_plans" label="Unit Size"></v-select>
+                          <v-text-field outlined v-model="new_unit_number" label="Number"></v-text-field>
+                          <v-checkbox v-if="editing_unit == true" v-model="editing_unit_occupied" label="Occupied" type="checkbox"></v-checkbox>
+                          <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="blue darken-1" text @click="close">Cancel</v-btn>
+                            <v-btn v-if="editing_unit== false" @click="createNewUnit" color="primary">Submit</v-btn>
+                            <v-btn v-else @click="updateUnit" color="primary">Update</v-btn>
+                          </v-card-actions>
+                        </v-card>
+                      </v-dialog>
+                      <!-- End New/Edit Unit Dialog -->
+
+                  <v-col cols="12">
+                    <v-data-table :items-per-page="10" :headers="unit_headers" :items="units" sort-by="unitNumber" class="elevation-1" :search="unit_search" >
+                      <template v-slot:top>
+                        <v-toolbar flat color="white">
+                              <v-row>
+                                <v-col cols="2" class="pt-7"> <h2>Units</h2></v-col>
+                                <v-col cols="8" class="pt-7">
+                                  <v-text-field v-model="unit_search" append-icon="mdi-magnify" label="Search" single-line hide-details></v-text-field>
+                                </v-col>
+                                <v-col cols="2" class="text-right">
+                                  <v-btn color="primary" @click="new_unit_dialog = true">
+                                    Unit<v-icon dark>mdi-plus</v-icon>
+                                 </v-btn>
+                                 </v-col>
+                              </v-row>
+
+                            <!-- Begin Unit Info  Dialog -->
+                            <v-dialog persistent v-model="unit_info_dialog" max-width="900px">
+                              <v-card>
+                                <v-card-text>
+                                  <v-container>
+                                    <v-row>
+                                      <v-col cols="4">
+                                        <v-card flat>
+                                          <v-card-title>Unit Details</v-card-title>
+                                          <v-card-text>
+                                            <p><strong>Number:</strong> {{selected_unit.unit.unitNumber}}</p>
+                                            <p><strong>Size:</strong> {{selected_unit.unit.unitSize}}</p> 
+                                            <p v-if="selected_unit.unit.occupied"><strong>Status:</strong> <span color="success">Occupied</span></p>
+                                            <p v-else><strong>Status:</strong> <span color="error">Vacant</span></p> 
+                                          </v-card-text>
+                                        </v-card>
+                                      </v-col>
+  
+                                      <v-col cols="8">
+                                        <v-card flat v-if="selected_unit.unit.occupied == true">
+                                          <v-card-title>Client Details</v-card-title>
+                                          <v-card-text>
+                                            <p><strong>Name: </strong>{{selected_unit.client.lastName}}, {{selected_unit.client.firstName}}</p>
+                                            <p><strong>Email: </strong>{{selected_unit.client.email}}</p> 
+                                            <p><strong>Phone: </strong>{{selected_unit.client.phone}}</p> 
+                                            <p><strong>Address: </strong>{{selected_unit.client.address}}</p> 
+                                            <p><strong>Zip Code: </strong>{{selected_unit.client.zipCode}} <strong>State: </strong>{{selected_unit.client.state}}</p> 
+                                            <p><strong>Move In Date: </strong>{{selected_unit.client.moveInDate}} <strong>Move Out Date:</strong> {{selected_unit.client.moveOutDate}}</p> 
+                                          </v-card-text>
+                                          <v-card-actions>
+                                            <v-btn color="primary" @click="unassignUnitFromClient">Unassign Unit</v-btn>
+                                          </v-card-actions>
+                                        </v-card>
+
+                                        <v-card flat v-else>
+                                          <v-card-title>Assign a Client</v-card-title>
+                                          <v-row v-for="client in clients">
+                                            <v-col cols="9">
+                                              <v-list-item two-line>
+                                                <v-list-item-content >
+                                                  <v-list-item-title>Name: {{client.lastName}}, {{client.firstName}}</v-list-item-title>
+                                                  <v-list-item-subtitle>
+                                                    Email: {{client.email}}, Phone: {{client.phone}}
+                                                  </v-list-item-subtitle>
+                                                </v-list-item-content>
+                                              </v-list-item>
+                                            </v-col>
+                                            <v-col cols="3" class="text-right">
+                                              <v-btn color="primary" @click="assignUnitToClient(client)">
+                                                Assign
+                                              </v-btn>
+                                            </v-col>
+                                          </v-row>
+                                        </v-card>
+                                      </v-col>
+                                    </v-row>
+                                  </v-container>
+                                </v-card-text>
+                                <v-card-actions>
+                                  <v-spacer></v-spacer>
+                                  <v-btn color="blue darken-1" text @click="close">Done</v-btn>
+                                </v-card-actions>
+                              </v-card>
+                            </v-dialog>
+                            <!-- End Unit Info Dialog -->
+
+                        </v-toolbar>
+                      </template>
+                      <template v-slot:item.action="{ item }">
+                        <v-icon small v-on:click="deleteUnit(item)">fas fa-trash</v-icon><v-icon small v-on:click="getUnitDetails(item)">fas fa-info</v-icon>
+                      </template>
+                    </v-data-table>
+                  </v-col>
+                </v-row>
+              </v-card>
+              </v-container>
+              <!-- End Units Page -->
+
+              <!-- Start Tasks Page -->
+              <v-container v-show="page == 'tasks'" class="lighten-5">
+                <v-row>
+                  <!-- Start Task List Card -->
+                  <v-col cols="8">
+                    <v-card class="pa-4">
+                      <v-row>
+                        <v-col cols="6">
+                          <v-card-title>Tasks</v-card-title>
+                        </v-col>
+                        <v-col cols="6" class="text-right">
+                          <v-btn class="mx-2" color="primary" @click="new_task_dialog = true">
+                             Task <v-icon dark>mdi-plus</v-icon>
+                          </v-btn>
+                        </v-col>
+                      </v-row>
+
+                      <!-- Start Task Loop -->
+                      <div v-for="task in tasks">
+                        <v-row>
+                          <v-col cols="9">
+                            <v-list-item three-line>
+                              <v-list-item-content>
+                                <v-list-item-title>{{task.title}}</v-list-item-title>
+                                <v-list-item-subtitle v-if="task.complete == true">
+                                  <v-icon class="mr-2" color="success" small>fas fa-check</v-icon><strong color="success">Complete</strong>
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle v-else>
+                                  <v-icon class="mr-2" color="error"small>fas fa-clock</v-icon><strong>Due:</strong> {{task.dueDate}}
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle>
+                                  {{task.details}}
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle>
+                                  <strong>Created by:</strong> {{task.createdBy}} on {{task.dateCreated}} 
+                                </v-list-item-subtitle>
+                              </v-list-item-content>
+                            </v-list-item>
+                          </v-col>
+                          <v-col cols="2" class="text-right">
+                            <v-icon small v-on:click="deleteTask(task)">fas fa-trash</v-icon><v-icon small v-on:click="editTask(task)">fas fa-edit</v-icon>
+                          </v-col>
+                        </v-row>
+                        <v-divider></v-divider>
+                      </div>
+                      <!-- End Task Loop -->
+
+                      <!-- Start New/Edit Task Dialog -->
+                      <v-dialog persistent v-model="new_task_dialog" max-width="500px">
+                        <v-card class="pa-4">
+                          <v-card-title v-if="editing_task == false">Create a New Task</v-card-title>
+                          <v-card-title v-else>Edit Task</v-card-title>
+                          <v-text-field outlined v-model="new_task_title" label="Title"></v-text-field>
+                          <v-text-field outlined v-model="new_task_details" label="Details"></v-text-field>
+                          <v-menu v-model="new_task_due_menu" ref="datePicker" :close-on-content-click="false" offset-y min-width="290px">
+                            <template v-slot:activator="{ on }">
+                                <v-text-field outlined v-model="new_task_due_date" label="Due Date" readonly v-on="on"></v-text-field>
+                            </template>
+                            <v-date-picker v-model="new_task_due_date" @input="new_task_due_menu = false" no-title scrollable>
+                                <v-spacer></v-spacer>
+                            </v-date-picker>
+                          </v-menu>
+                          <v-text-field outlined v-model="new_task_created_by" label="Created By"></v-text-field>
+                          <v-checkbox v-if="editing_task == true" v-model="editing_task_complete" label="Completed" type="checkbox"></v-checkbox>
+                          <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="blue darken-1" text @click="close">Cancel</v-btn>
+                            <v-btn v-if="editing_task == false" @click="createNewTask" color="primary">Submit</v-btn>
+                            <v-btn v-else @click="updateTask" color="primary">Update</v-btn>
+                          </v-card-actions>
+                        </v-card>
+                      </v-dialog>
+                      <!-- End New/Edit Task Dialog -->
+
+                    </v-card>
+                  </v-col>
+                  <!-- End Task List Card -->
+
+                  <!-- Task Summary -->
+                  <v-col cols="4">
+                    <v-card class="pa-2">
+                      <v-card-title>Tasks Summary</v-card-title>
+                      <v-row justify="center">
+                        <div class="text-center ma-7">
+                          <v-progress-circular
+                            :indeterminate="false"
+                            :rotate="0"
+                            :size="150"
+                            :value="completed_tasks"
+                            :width="15"
+                            :color="task_graph_color"
+                          >{{ completed_tasks }}/{{ total_tasks}} <br>Complete</v-progress-circular>
+                        </div>
+                      </v-row>
+                      <v-card-text>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Completed Tasks</v-col><v-col cols="6" class="text-end">{{completed_tasks}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Incomplete Tasks</v-col><v-col cols="6" class="text-end">{{incomplete_tasks}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Total Tasks</v-col><v-col cols="6" class="text-end">{{total_tasks}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                  <!-- End Tasks Summary -->
+                </v-row>
+              </v-container>
+              <!-- End Tasks Page -->
+
+              <!-- Start Leads Page -->
+              <v-container v-show="page == 'leads'" class="lighten-5">
+                <v-row>
+                  <v-col cols="8">
+                    <v-card class="pa-4">
+                      <v-row>
+                        <v-col cols="6">
+                          <v-card-title>Leads</v-card-title>
+                        </v-col>
+                        <v-col cols="6" class="text-right">
+                          <v-btn class="mx-2" color="primary" @click="new_lead_dialog = true">
+                             Lead <v-icon dark>mdi-plus</v-icon>
+                          </v-btn>
+                        </v-col>
+                      </v-row>
+                      <div v-for="lead in leads">
+                        <v-row>
+                          <v-col cols="8">
+                            <v-list-item three-line>
+                              <v-list-item-content>
+                                <v-list-item-title>{{lead.lastName}}, {{lead.firstName}}</v-list-item-title>
+                                <v-list-item-subtitle  v-if="lead.contacted" >
+                                  <v-icon class="mr-2" small color="primary" >fas fa-envelope</v-icon> {{lead.email}}, <v-icon color="success" class="ma-2" small>fas fa-phone</v-icon>{{lead.phone}}
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle  v-else >
+                                  <v-icon class="mr-2" small color="primary" >fas fa-envelope</v-icon> {{lead.email}}, <v-icon color="error" class="ma-2" small>fas fa-phone</v-icon>{{lead.phone}}
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle>
+                                  <strong>Type:</strong> {{lead.type}}, <strong>Source:</strong> {{lead.source}},  
+                                </v-list-item-subtitle>
+                              </v-list-item-content>
+                            </v-list-item>
+                          </v-col>
+                          <v-col cols="4" class="text-right">
+                            <v-icon small v-on:click="deleteLead(lead)">fas fa-trash</v-icon><v-icon small v-on:click="editLead(lead)">fas fa-edit</v-icon>
+                          </v-col>
+                        </v-row>
+                        <v-divider></v-divider>
+                      </div>
+    
+                      <!-- Start New/Edit Lead Dialog -->
+                      <v-dialog persistent v-model="new_lead_dialog" max-width="800px">
+                        <v-card class="pa-4">
+                        <v-card-title v-if="editing_lead == false">Create a New Lead</v-card-title>
+                        <v-card-title v-else>Edit Lead</v-card-title>
+                          <v-row>
+                            <v-col cols="6">
+                              <v-select v-model="new_lead_type" :items="new_lead_type_items" label="Lead Type" outlined></v-select>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-select v-model="new_lead_source" :items="new_lead_source_items" label="Lead Source" outlined></v-select>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined v-model="new_lead_first_name" label="First Name"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined v-model="new_lead_last_name" label="Last Name"></v-text-field>
+                            </v-col>
+                            <v-col cols="12">
+                              <v-text-field outlined v-model="new_lead_email" label="Email Address"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-text-field outlined v-model="new_lead_phone" label="Phone Number"></v-text-field>
+                            </v-col>
+                            <v-col cols="6">
+                              <v-select v-model="new_lead_desired_unit" :items="new_lead_desired_unit_items" label="Desired Unit Size" outlined></v-select>
+                            </v-col>
+                            <v-col cols="12">
+                              <v-checkbox v-if="editing_lead == true" v-model="editing_lead_contacted" label="Contacted" type="checkbox"></v-checkbox>
+                            </v-col>
+                          </v-row>
+                          <v-row >
+                          </v-row>
+                          <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="blue darken-1" text @click="close">Cancel</v-btn>
+                            <v-btn v-if="editing_lead == false" color="primary" @click="createNewLead()">Submit</v-btn>
+                            <v-btn  v-else color="primary" @click="updateLead()">Update</v-btn>
+                          </v-card-actions>
+                        </v-card>
+                      </v-dialog>
+                      <!-- End New/edit Lead Dialog -->
+                    </v-card>
+                  </v-col>
+
+                  <!-- Lead Summary -->
+                  <v-col cols="4">
+                    <v-card class="pa-2">
+                      <v-card-title>Leads Summary</v-card-title>
+                      <v-row justify="center">
+                        <div class="text-center ma-7">
+                          <v-progress-circular
+                            :indeterminate="false"
+                            :rotate="0"
+                            :size="150"
+                            :value="contacted_leads"
+                            :width="15"
+                            :color="lead_graph_color"
+                          >{{ contacted_leads }}/{{ total_leads}} <br>Contacted</v-progress-circular>
+                        </div>
+                      </v-row>
+                      <v-card-text>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Contacted Leads</v-col><v-col cols="6" class="text-end">{{contacted_leads}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Uncontacted Leads</v-col><v-col cols="6" class="text-end">{{uncontacted_leads}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                          <v-row justify="space-between" dense>
+                            <v-col cols="6">Total Leads</v-col><v-col cols="6" class="text-end">{{total_leads}}</v-col>
+                          </v-row>
+                          <v-divider></v-divider>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                  <!-- End Leads Summary -->
+                </v-row>
+              </v-container>
+              <!-- EndLeads Page -->
+            </v-card>
+        </v-content>
+    </v-app>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-resource@1.5.1"></script>
+  <script src="code.js"></script>
+</body>
+</html>
