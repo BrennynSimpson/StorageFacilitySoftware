@@ -54,23 +54,24 @@ function showCardError(error) {
 
 var createPaymentMethodAndCustomer = function(stripe, card) {
   var cardholderEmail = document.querySelector('#email').value;
+  var cardholderName = app.new_client_first_name + " " + app.new_client_last_name
   stripe
     .createPaymentMethod('card', card, {
       billing_details: {
         email: cardholderEmail,
+        name: cardholderName
       },
     })
     .then(function(result) {
       if (result.error) {
         showCardError(result.error);
       } else {
-        var customerObject = createCustomer(result.paymentMethod.id, cardholderEmail);
-        console.log("Customer Object", customerObject);
+        var customerObject = createCustomer(result.paymentMethod.id, cardholderEmail, cardholderName);
       }
     });
 };
 
-async function createCustomer(paymentMethod, cardholderEmail) {
+async function createCustomer(paymentMethod, cardholderEmail, cardHolderName) {
     var cardholderPlan = document.querySelector('#plan_selector').value
 
   return fetch('/create-customer', {
@@ -81,11 +82,11 @@ async function createCustomer(paymentMethod, cardholderEmail) {
     body: JSON.stringify({
         plan: cardholderPlan,
         email: cardholderEmail,
+        name: cardHolderName,
         payment_method: paymentMethod
     })
   })
     .then(response => {
-      console.log("response in Create Customer: ", response);
       return response.json();
     })
     .then(subscription => {
@@ -209,15 +210,15 @@ var app = new Vue ({
         charge_headers: [
           { text: 'Amount', align: 'start', sortable: false, value: 'amount'},
           { text: 'Description', value: 'description' },
-          { text: 'Customer', value: 'billing_details.email' },
-          { text: 'Date', value: 'created' },
+          { text: 'Email', value: 'billing_details.email' },
+          { text: 'Name', value: 'billing_details.name' },
           { text: 'Actions', value: 'action', sortable: false },
         ],
         charge_summary_headers: [
           { text: 'Amount', align: 'start', sortable: false, value: 'amount'},
           { text: 'Description', value: 'description' },
           { text: 'Customer', value: 'billing_details.email' },
-          { text: 'Date', value: 'created' },
+          { text: 'Name', value: 'billing_details.name' },
         ],
         dialog_charge: {
           client: {},
@@ -590,7 +591,6 @@ var app = new Vue ({
                 })
             } else if ( response.status == 201 ) {
                 response.json( ).then(( data ) =>{
-                  console.log("Client Added: ", data.client);
                   if(this.unit_to_be_assigned_to_client._id != ""){
                     app.assignUnitToClient(data.client);
                   }
@@ -615,7 +615,6 @@ var app = new Vue ({
               method: "DELETE"
           }).then( function( response ){
               if( response.status == 204 ){
-                  console.log( "It worked" );
                   app.loadClients();
               } else if ( response.status == 400 ) {
                   response.json().then( function( data ) {
@@ -679,7 +678,6 @@ var app = new Vue ({
             body: JSON.stringify( req_body )
           }).then( ( response ) => {
               response.json(  ).then( ( client ) => {
-                console.log("Updated client by id:", client)
                 this.close();
                 this.editing_client= false;
                 app.loadClients();
@@ -705,7 +703,6 @@ var app = new Vue ({
             body: JSON.stringify( req_body )
           }).then( ( response ) => {
               response.json(  ).then( ( unit ) => {
-                console.log("Updated unit by id:", unit)
 
                 this.unit_to_be_assigned_to_client = "";
                 
@@ -731,7 +728,6 @@ var app = new Vue ({
             body: JSON.stringify( req_body )
           }).then( ( response ) => {
               response.json(  ).then( ( unit ) => {
-                console.log("Updated unit by id:", unit)
                 
                 app.loadUnits();
                 app.loadClients();
@@ -776,7 +772,6 @@ var app = new Vue ({
               method: "DELETE"
           }).then( function( response ){
               if( response.status == 204 ){
-                  console.log( "It worked" );
                   app.loadUnits();
               } else if ( response.status == 400 ) {
                   response.json().then( function( data ) {
@@ -803,7 +798,6 @@ var app = new Vue ({
             body: JSON.stringify( req_body )
           }).then( ( response ) => {
               response.json(  ).then( ( unit ) => {
-                console.log("Updated unit by id:", unit)
 
                 this.assign_unit_size = "";
                 this.assign_unit_number = "";
@@ -834,7 +828,6 @@ var app = new Vue ({
         },
 
         getUnitDetails: function (unit) {
-          console.log(unit);
           this.unit_info_dialog = true;
           if(unit.customerId != ""){
             fetch( `http://localhost:3000/clients/${unit.customerId}` ).then( ( response ) => {
@@ -877,13 +870,12 @@ var app = new Vue ({
                 body: JSON.stringify( req_body )
               }).then( ( response ) => {
                 response.json(  ).then( ( invoices ) => {
-                  console.log("Invoices: ", invoices);
                   invoices.forEach(invoice => {
                     newInvoice = {
                       client: client,
                       id: invoice.id,
                       billing_details: invoice.billing_details,
-                      amount: invoice.amount,
+                      amount: "$50.00",
                       description: invoice.description,
                       card: invoice.payment_method_details.card, 
                       receipt_url: invoice.receipt_url,
@@ -896,7 +888,6 @@ var app = new Vue ({
                   })
                 });
               });
-              console.log("charges: ",this.charges);
 
             }
           })
@@ -943,7 +934,6 @@ var app = new Vue ({
                       alert(data.msg);
                   })
               } else if ( response.status == 201 ) {
-                  console.log( "Added");
                   app.loadTasks();
               }
           });
@@ -971,7 +961,6 @@ var app = new Vue ({
             body: JSON.stringify( req_body )
           }).then( ( response ) => {
               response.json(  ).then( ( task ) => {
-                console.log("Updated task by id:", task)
 
                 this.editing_task = false;
                 this.new_task_dialog = false;
@@ -991,7 +980,6 @@ var app = new Vue ({
               method: "DELETE"
           }).then( function( response ){
               if( response.status == 204 ){
-                  console.log( "It worked" );
                   app.loadTasks();
               } else if ( response.status == 400 ) {
                   response.json().then( function( data ) {
@@ -1046,7 +1034,6 @@ var app = new Vue ({
                       alert(data.msg);
                   })
               } else if ( response.status == 201 ) {
-                  console.log( "Added");
                   app.loadLeads();
               }
           });
@@ -1065,7 +1052,6 @@ var app = new Vue ({
               method: "DELETE"
           }).then( function( response ){
             if( response.status == 204 ){
-                console.log( "It worked" );
                 app.loadLeads();
             } else if ( response.status == 400 ) {
                 response.json().then( function( data ) {
@@ -1096,7 +1082,6 @@ var app = new Vue ({
             body: JSON.stringify( req_body )
           }).then( ( response ) => {
               response.json(  ).then( ( lead ) => {
-                console.log("Updated lead by id:", lead)
 
                 this.new_lead_type = "";
                 this.new_lead_source = "";
